@@ -1,0 +1,432 @@
+---
+title: "Quantitative Text Analysis"
+subtitle: "Homework 01"
+author: "Irem Erkilic"
+format:
+    html:
+        self-contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Instructions
+
+- Rename this file to your `2025_qta_lastname_firstname_homework01.qmd` and insert your name at the header of this script under "author" (see `INSERT YOUR NAME`).
+- If an answer to a question requires code, add the code in the code block below. For questions that need interpretations or explanations, write your answer in _italics_ (using `_` and `_` at the beginning and end of your answer) below the question.
+- Please render this file as an .html document and upload the .html document to the assignment folder on Brightspace.
+- If the code for one of the questions is not working, leave the code in the chunk, but change the beginning of the chunk to `{r,eval=FALSE}`. Only do this as a last resort, though.
+
+## Questions
+
+
+**As mentioned previously, StackOverFlow, Google, GitHub Copilot (free subscription for students!) and Chat-GPT are your friends. You are encouraged use these tools to assist you! To understand the advantages and limitations, please write a short summary of your experiences at the end of this document.**
+
+1. By explicitly referring to the literature from the syllabus, list three advantages of dictionaries and three disadvantages of dictionary approaches. You need to mention at least one reading from the syllabus. Suggested length: 100-150 words 3 points
+
+_There are several advantages of dictionary approaches. Firstly, dictionary methods are straightforward to implement and interpret, as they rely on pre-defined lists of terms with assigned values, making them accessible for researchers without advanced computational skills (Grimmer & Stewart, 2013). Also, dictionaries can be tailored to specific domains or research questions, allowing for more precise measurement of relevant concepts, considering that these approaches are computationally efficient and scalable, enabling the analysis of extensive datasets quickly (Proksch et al., 2019)._
+
+_However, dictionaries often fail to account for context, leading to potential misclassification of words with multiple meanings (Grimmer & Stewart, 2013). In addition, pre-defined dictionaries may not capture evolving language use or emerging terms, limiting their applicability in dynamic contexts (Proksch et al., 2019). So, ensuring that dictionary measures accurately capture the intended concepts is difficult and often neglected, undermining reliability (Benoit, 2020; Müller, 2020)_
+
+
+2. By explicitly referring to the literature from the syllabus and your own views, explain the trade-off between dictionaries with only a few and many terms. You need to mention at least one reading from the syllabus. Suggested length: 100-150 words. 3 points
+
+_Firstly, smaller dictionaries are easier to interpret, as each term's inclusion is deliberate and tied to specific theoretical constructs whereas larger dictionaries capture more linguistic variation, improving their ability to analyze diverse or complex corpora (Grimmer & Stewart, 2013). In addition, although fewer terms minimize the risk of including irrelevant or ambiguous words that could distort results with more terms, dictionaries are less likely to miss key words in different contexts or evolving language use (Müller, 2020)._
+
+3. Download the `Ireland_Corpus2.0.csv` file from: https://doi.org/10.34894/VKQSPO. Download the PDF file `ReleaseNote_ManifestoVault_Updated.pdf` file to understand the variable codings. Load the data frame into R and transform it into a quanteda corpus. You can use `read.csv()` to load the data frame. Then filter only manifestos **published in 2024**. 5 points
+
+```{r}
+#Load quanteda package
+library(quanteda)
+
+#Loading the dataframe
+elections_ie_data_frame <- read.csv("Ireland_Corpus2.0.csv")
+
+#Transform it into a quanteda corpus
+elections_ie_corpus <- corpus(elections_ie_data_frame, docid_field = "text_id")
+
+#Filter only manifestos published in 2024
+elections_ie_data_frame <- read.csv("Ireland_Corpus2.0.csv")
+elections_ie_2024 <- subset(elections_ie_data_frame, 
+                           as.integer(substr(date, 1, 4)) == 2024)
+
+#Turn the filtered data into a quanteda corpus
+elections_ie_2024_corpus <- corpus(elections_ie_2024, docid_field = "text_id")
+
+#View the summary of the corpus
+summary(elections_ie_2024_corpus)
+
+
+```
+
+
+4. Create a dictionary on terms and phrases related to housing policy. You can use media coverage or official documents (e.g., https://www.gov.ie/en/publication/ef5ec-housing-for-all-a-new-housing-plan-for-ireland/) as a starting point to identify relevant terms for the dictionary. It's important to avoid false-positive mentions (i.e., content scored as housing even though it could be about a different policy area). 5 points
+
+```{r}
+#Create the dictionary with two key terms
+dict_housing <- dictionary(list(
+    housing = c("home*", "hous*", "accommodation","buyers"),
+    rent = c("rent*", "lease", "landlord", "apartment*", "tenant")
+
+))
+
+#View the dictionary
+dict_housing
+
+```
+
+5. Get the number of sentences per manifesto (either using `group_by` in combination with `count()` or `table()`). Which manifesto has the highest/lowest number of sentences? 4 points
+
+```{r}
+# Load dplyr library
+library(dplyr)
+
+# Create a new variable 'manifesto_id' by removing the final underscore and characters
+elections_ie_2024$manifesto_id <- sub("_\\d+$", "", elections_ie_2024$text_id)
+
+# Count the number of sentences per manifesto
+sentence_counts <- elections_ie_2024 %>%
+  group_by(manifesto_id) %>%
+  count(name = "sentence_count")
+
+# Find the manifesto with the highest number of sentences
+max_sentences <- sentence_counts %>%
+  filter(sentence_count == max(sentence_count))
+
+# Find the manifesto with the lowest number of sentences
+min_sentences <- sentence_counts %>%
+  filter(sentence_count == min(sentence_count))
+
+# Display results
+print("Manifesto with the highest number of sentences:")
+print(max_sentences)
+
+print("Manifesto with the lowest number of sentences:")
+print(min_sentences)
+
+
+```
+
+
+6. Tokenize the corpus without any preprocessing. Store the output as a new object called "toks_noprocessing". 3 points
+
+```{r}
+#Tokenise the corpus
+toks_noprocessing <- tokens(elections_ie_2024_corpus)
+
+#Display the result
+toks_noprocessing
+
+```
+
+7. Apply the dictionary you created above to the tokens object of Irish party manifestos, then create a dfm. 5 points
+
+```{r}
+#Create a dfm from the tokens object
+dfm_all <- dfm(toks_noprocessing)
+
+#Apply the dictionary by looking up its terms in the dfm
+dfm_housing <- dfm_lookup(dfm_all, dictionary = dict_housing)
+
+#Print the resulting dfm
+print(dfm_housing)
+
+```
+
+8. Apply Boolean weighting to the dfm. Note: check out `dfm_weight()`. This will tell you whether a sentence relates to housing or not (according to the dictionary). Then transform the dfm object to a data frame using `convert()`. 5 points
+
+```{r}
+#Apply Boolean weighting
+dfm_housing_boolean <- dfm_weight(dfm_housing, scheme = "boolean")
+
+#Transform the weighted dfm to a data frame
+housing_df <- convert(dfm_housing_boolean, to = "data.frame")
+
+#Preview the resulting data frame
+head(housing_df)
+
+```
+
+
+9. Create a ggplot2 plot with the housing average on the x-axis and the partynames on the y-axis. Interpret the output: which parties focus most on housing? In all plots, make sure to add meaningful/readable axis labels. Change the ggplot2 theme to theme_bw(). 5 points
+
+```{r}
+
+# Loading the necessary library
+#library(ggplot2)
+
+# Add a document identifier
+#housing_df$doc_id <- docnames(dfm_housing_boolean)
+
+# Load the new data including two columns 
+#new_data <- elections_ie_2024[, c("text_id", "partyname")]
+
+# Merge the housing data with the metadata using the document id
+#merged_df <- merge(housing_df, new_data, by.x = "doc_id", by.y = "text_id")
+
+# Compute the average Boolean housing indicator per party.
+#party_housing_avg <- merged_df %>%
+  #group_by(partyname) %>%
+  #summarise(housing_avg = mean(housing))
+
+# Create the ggplot with housing average on the x-axis and party names on the y-axis
+#housing_plot <- ggplot(party_housing_avg, aes(x = housing_avg, y = reorder(partyname, housing_avg))) +
+  #geom_point(size = 3) +
+  #theme_bw() +
+  #labs(x = "Housing Average", 
+       #y = "Party Name", 
+       #title = "Average Housing Presence by Party")
+
+# Display the plot
+#print(housing_plot)
+
+# It is somehow giving a blank plot. I couldn't solve the issue.
+```
+
+10. Create a faceted **ggplot2** plot (`facet_wrap()`) with the party name on top of each box/facet, the housing average on the x-axis, and the year on the y-axis. Interpret the output: which parties focus most on housing? In all plots, make sure to add meaningful/readable axis labels. Change the ggplot2 theme to `theme_bw()`. 5 points
+
+```{r}
+
+#Load required libraries
+library(dplyr)
+library(ggplot2)
+
+
+#Merge metadata with housing indicators
+housing_df <- convert(dfm_housing, to = "data.frame")
+housing_df$doc_id <- docnames(dfm_housing)  # Correct document IDs
+merged_df <- merge(housing_df, elections_ie_2024[, c("text_id", "partyname", "date")], 
+                   by.x = "doc_id", by.y = "text_id")
+
+#Calculate yearly housing averages per party
+merged_df$year <- as.integer(substr(merged_df$date, 1, 4))
+party_housing_avg <- merged_df %>%
+  group_by(partyname, year) %>%
+  summarise(housing_avg = mean(housing, na.rm = TRUE)) %>%
+  ungroup()
+
+#Create faceted plot
+ggplot(party_housing_avg, aes(x = housing_avg, y = as.factor(year))) +
+  geom_col(fill = "steelblue", width = 0.7) +
+  facet_wrap(~ partyname, ncol = 3) +
+  theme_bw() +
+  labs(x = "Housing Focus (Proportion of Sentences)", 
+       y = "Year",
+       title = "Housing Policy Focus by Irish Political Parties (2024)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
+
+11. Apply the Lexicoder Sentiment Dictionary (`data_dictionary_LSD2015`, included in **quanteda**) to the sentence-level party manifestos (toks_noprocessing). You can use the tokens object you created above (that you created before applying a dictionary). Create a dfm and convert this dfm into a data frame. Use the formula suggested by Proksch et al. (2019, Legislative Studies Quarterly) and calculate a sentiment score for each sentence. This formula was also listed in the slides for week 4. 10 points
+
+```{r}
+#Load Lexicoder Sentiment Dictionary (LSD2015)
+data("data_dictionary_LSD2015")
+
+# Apply dictionary to tokenized sentences
+dfm_sentiment <- dfm_lookup(dfm(toks_noprocessing), dictionary = data_dictionary_LSD2015)
+
+#Convert dfm to data frame
+df_sentiment <- convert(dfm_sentiment, to = "data.frame")
+
+#Calculate sentiment score using the correct Proksch et al. (2019) formula
+df_sentiment <- df_sentiment %>%
+  mutate(total_words = rowSums(select(., -doc_id)),  # Sum all word counts per sentence
+         sentiment_score = (positive - negative) / total_words)
+
+#Print the first few rows
+head(df_sentiment)
+
+
+```
+
+
+12. Merge the data frame from the previous question with the data frame created in question 8. You can use the `left_join()` function from the **dplyr** package. 5 points
+
+```{r}
+
+#Merge df_sentiment with housing_df 
+merged_df <- left_join(df_sentiment, housing_df, by = "doc_id")
+
+#Check the first few rows
+head(merged_df)
+
+```
+
+
+13. Transform the binary indicator of housing (1/0) into a factor variable – call it housing_factor – taking the value "Housing" when the variable takes the value 1 and "Other Policy Area" if the value is 0. Run a linear regression model using the `lm()` function and predict the sentence-level sentiment score. The independent variable should be housing_factor. Add a control variable for the manifesto (=manifesto fixed effects). 5 points
+
+```{r}
+#Convert binary housing indicator to a factor
+merged_df <- merged_df %>%
+  mutate(housing_factor = factor(housing, levels = c(0, 1), labels = c("Other Policy Area", "Housing")))
+
+#Run the regression model with total_words and housing_factor as predictors
+model <- lm(sentiment_score ~ housing_factor + total_words, data = merged_df)
+
+#Show results
+summary(model)
+
+```
+
+14. Interpret the output of the regression model. Is sentiment in housing-related statements more positive or negative than in other statements? Suggested length: around 100 words; 1 point 
+
+_The regression model shows that the sentiment in housing-related statements is not significantly different from that in other policy areas. The coefficient for housing_factorHousing is -0.0065 with a p-value of 0.7979, indicating no statistically significant difference in sentiment between "Housing" and "Other Policy Area." Additionally, the number of words (total_words) has a positive and statistically significant effect on sentiment, with each additional word increasing the sentiment score slightly. However, the model explains very little of the variation in sentiment (R-squared = 0.00038), suggesting that other factors may also influence sentiment._ 
+
+15. Use `tokens_keep()` to select only negative terms from "toks_noprocessing" (`data_dictionary_LS2015$negative`). Then transform the object to a dfm and get the 100 most frequent negative terms. Are there features which might not be negative in this context? Indicate a few terms. Repeat the same for positive terms. 5 points
+
+_Firstly, it seems like the words "ireland" and "ireland's" are not necessarily negative. Also, the word "too" may not indicate a negative sentiment contextually. Moreover, the word "unprecedented" has potential to be used with positive sentences._
+_Secondly, the word "neutrality" is classified as a positive term, which may not make sense when considering the word itself. In addition, the word "support" could be used in a negative sentence such as 'lack of support', which may indicate a negative address._
+
+```{r}
+#Filter negative terms
+negative_tokens <- tokens_keep(toks_noprocessing, pattern = data_dictionary_LSD2015$negative)
+
+#Transform tokens to dfm
+negative_dfm <- dfm(negative_tokens)
+
+#Get the 100 most frequent negative terms
+top_negative_terms <- topfeatures(negative_dfm, 100)
+
+#Print the most frequent negative terms
+print(top_negative_terms)
+
+#Filter positive terms
+positive_tokens <- tokens_keep(toks_noprocessing, pattern = data_dictionary_LSD2015$positive)
+
+#Transform tokens to dfm
+positive_dfm <- dfm(positive_tokens)
+
+#Get the 100 most frequent positive terms
+top_positive_terms <- topfeatures(positive_dfm, 100)
+
+#Print the most frequent positive terms
+print(top_positive_terms)
+
+```
+
+16. Remove the terms that, in your opinion, do not express positive or negative sentiment from the "toks_noprocessing" tokens object (using `tokens_remove()`), apply the dictionary again, and repeat the steps from questions 11 to 13. Does the inclusion or exclusion of these terms affect the substantive conclusions you can draw from the linear regression model? Suggested length: 50-100 words; 5 points
+
+_By removing terms like "Ireland" and "too", which might not express sentiment in certain contexts, the model could become more accurate in measuring the sentiment of statements. These words may have inflated or skewed the sentiment score, particularly in cases where they are part of neutral or non-sentimental phrases. If these terms appeared frequently in certain manifestos or political contexts, removing them could potentially lead to more accurate sentiment scores, resulting in more meaningful conclusions from the regression model._
+
+```{r}
+#Terms to remove that do not express sentiment
+terms_to_remove <- c("ireland", "ireland’s", "too", "unprecedented", "neutrality", "support")
+
+#Remove these terms from the tokens object
+toks_cleaned <- tokens_remove(toks_noprocessing, pattern = terms_to_remove)
+
+#Apply Lexicoder Sentiment Dictionary (Negative and Positive terms)
+negative_tokens_cleaned <- tokens_keep(toks_cleaned, pattern = data_dictionary_LSD2015$negative)
+positive_tokens_cleaned <- tokens_keep(toks_cleaned, pattern = data_dictionary_LSD2015$positive)
+
+#Create dfm for cleaned tokens
+negative_dfm_cleaned <- dfm(negative_tokens_cleaned)
+positive_dfm_cleaned <- dfm(positive_tokens_cleaned)
+
+#Calculate sentiment score
+sentiment_df_cleaned <- data.frame(
+  doc_id = docnames(negative_dfm_cleaned),
+  negative = rowSums(negative_dfm_cleaned),
+  positive = rowSums(positive_dfm_cleaned)
+)
+
+#Ensure that the sentiment_score is calculated properly
+sentiment_df_cleaned <- sentiment_df_cleaned %>%
+  mutate(total_words = rowSums(select(., -doc_id)),  # Sum all word counts per sentence
+         sentiment_score = (positive - negative) / total_words)
+
+#Merge sentiment data with the original data frame
+merged_cleaned_df <- left_join(merged_df, sentiment_df_cleaned, by = "doc_id")
+
+#I had to delete the regression code 
+#(model_cleaned <- lm(sentiment_score ~ housing_factor + total_words, data = merged_cleaned_df)) 
+#Because it halts the html rendering.
+
+
+```
+
+17. Describe three advantages of supervised machine learning approaches or fine-tuned transformer sentiment models compared to the dictionary approach? Suggested length: 100 words; 3 points
+
+_Supervised machine learning approaches or fine-tuned transformer models can capture the context of words, understanding how sentiment may change based on surrounding text, whereas dictionary-based approaches may misinterpret sentiment due to their reliance on predefined lists of words as we have observed the questions above. Also, fine-tuned transformers can achieve higher accuracy by learning nuanced sentiment patterns directly from labeled data, whereas dictionary-based methods may oversimplify sentiment by only relying on word presence without considering the full sentence structure._
+
+##  Keyness analysis
+
+18. Create a new document-level variable that takes the values "FF/FG" for Fianna Fáil and Fine Gael manifestos, and the value "Other Parties" for all other manifestos. Tokenize this text corpus. Then create a dfm, and group this dfm by the new document-level variable (ffg_other). 10 points
+
+```{r}
+#Create the new variable ffg_other based on the party
+elections_ie_2024 <- elections_ie_2024 %>%
+  mutate(ffg_other = case_when(
+    partyname %in% c("Fianna Fáil", "Fine Gael") ~ "FF/FG",
+    TRUE ~ "Other Parties"
+  ))
+
+#Filter the 2024 election manifestos and create a corpus
+corpus_ie_2024 <- corpus(elections_ie_2024)
+
+#Tokenize the corpus and create a dfm
+tokens_ie_2024 <- tokens(corpus_ie_2024)
+
+#Create a dfm grouped by the new document-level variable ffg_other
+dfm_ie_2024 <- dfm(tokens_ie_2024)
+
+#Add the 'ffg_other' grouping to the dfm as a document-level variable
+dfm_grouped <- dfm_group(dfm_ie_2024, groups = elections_ie_2024$ffg_other)
+
+#View the dfm grouped by ffg_other
+print(dfm_grouped)
+
+```
+
+19. Run a keyness analysis using the textstat_keyness() function from the **quanteda.textstsats** package on this grouped dfm. 6 points
+
+```{r}
+#Load the quanteda.textstats package
+library(quanteda.textstats)
+
+#Run keyness analysis on the grouped dfm
+keyness_results <- textstat_keyness(dfm_grouped)
+
+#View the results, too long, use head()
+head(keyness_results)
+
+```
+
+20. Use the `textplot_keyness()` functions from **quanteda.textplots** and show differences in word usage between Fianna Fáil/Fine Gael and all other parties. Plot 20 words for each group. 6 points
+
+```{r, fig.height = 8}
+#Load quanteda.textplots
+library(quanteda.textplots)
+
+#Display the top 20 significant words for Fianna Fáil/Fine Gael (FF/FG) vs. Other Parties
+top_keyness <- keyness_results %>%
+  arrange(desc(chi2)) %>%
+  head(20)
+
+# View the top 20 keyness results
+print(top_keyness)
+
+#Plot the keyness analysis for top 20 words
+textplot_keyness(keyness_results, n = 20)
+```
+
+
+## BONUS: Thinking about the Final Research Paper
+
+
+18. **BONUS**: Let's think about your final research paper: outline a testable research question you would address using quantitative text analysis. What is the dependent variable, and how could it be measured? Suggested length: 100 words; 1 bonus point
+
+_I am planning to write my dissertation on a comparison between two statistical institutions: one of them is an EU member-state institution (possibly D-Statis) and TurkStat (Türkiye's national statistical institution). This comparison will focus on the methodology and new technologies that is used by D-Statis, also how aligned it is with EU regulations on official statistical production comparing TurkStat's alignment with the EU as well. I am a Jean Monnet scholar (https://www.cfcu.gov.tr/jean-monnet-scholarship-programme) in Statistics field, that's why I will be conducting this research. I am planning to focus on asylum-seeker statistics. As you may guess, public trust to the official statistics is an interesting topic to study on and text analysis may be a useful method to retrieve necessary data from relevant media. So, for this module, I am planning to conduct a brief research for the public trust towards official asylum-seeker statistics that is produced by a national statistical institution. My possible research question may be "How does public discourse in media reflect trust in official asylum-seeker statistics produced by TurkStat, compared to D-Statis, in alignment with EU regulations?" The dependent variable in this case is public trust, which could be measured through sentiment analysis of media texts discussing asylum-seeker statistics. By examining positive, negative, and neutral sentiment in media reports, you can quantify the level of trust, providing insights into how public opinion is shaped by statistical institutions' methodologies and alignment with EU standards._
+
+19. **BONUS**: Which methodological approach could be suitable to test this research question? Relate to literature from the syllabus we have discussed so far or literature to be discussed in the coming weeks.  Suggested length: 50-100 words; 1 bonus point
+
+
+I encourage you to use AI tools to support you with coding. Please write down for which question(s) AI tools were particularly helpful, and for which questions it was very not helpful. Your responses to this question will not affect your grade.
+
+_I have used Perplexity.ai and ChatGPT to find some possible solutions to the errors that I got while coding. To start with, in Question 9, I have used AI to compute the average Boolean housing indicator (I am bad at maths). Secondly, I wondered why the output had zero sentiment scores for all sentences in Question 11 and asked ChatGPT, got a reasonable answer. In Question 16, even though the regression code worked and I could see the output in the terminal, I couldn't render it for some reason. I asked ChatGPT and it recommended me to use a sample from the data and run a regression on it, which did not work either. So, I had to remove the regression code line to be able to render the file. I also used Perplexity.ai to summarise and shorten my findings in the first two questions. Overall, AI helped me making some errands easier and giving some basic answers to my questions those are often caused by my lack of knowledge in R._
